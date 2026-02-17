@@ -92,12 +92,10 @@ class ResultsViewModel: ObservableObject {
         highlightedGroup = nil
     }
     
-    // 单选逻辑
     func toggleFileSelection(_ file: FileItem, in group: DuplicateGroup) {
         if appState.selectedFiles.contains(file.id) {
             appState.selectedFiles.remove(file.id)
         } else {
-            // 业务规则：不能全选，至少保留一个
             let currentSelectedCount = group.files.filter { appState.selectedFiles.contains($0.id) }.count
             if currentSelectedCount < group.files.count - 1 {
                 appState.selectedFiles.insert(file.id)
@@ -108,39 +106,53 @@ class ResultsViewModel: ObservableObject {
         appState.calculateTotalSelectedSize()
     }
     
-    // 批量自动选择逻辑 (Refactored)
     func autoSelect(keep: AutoSelectRule) {
         appState.autoSelect(keep: keep)
     }
     
-    // 取消全选逻辑 (Refactored)
     func deselectAll() {
         appState.selectedFiles.removeAll()
         appState.calculateTotalSelectedSize()
     }
     
-    // 删除逻辑
+    // 增强的删除逻辑：统计失败详情
     func removeSelected() {
-        print("Remove button clicked. Selected files: \(appState.selectedFiles.count)")
-        
         let filesToDelete = appState.duplicateGroups
             .flatMap { $0.files }
             .filter { appState.selectedFiles.contains($0.id) }
         
         guard !filesToDelete.isEmpty else { return }
         
-        let urlsToDelete = filesToDelete.map { $0.url }
-        
-        NSWorkspace.shared.recycle(urlsToDelete) { [weak self] newURLs, error in
+        // 异步执行删除
+        Task {
+            var successCount = 0
+            var failCount = 0
+            var deletedSize: Int64 = 0
+            var lastError: Error?
+            
+            for file in filesToDelete {
+                do {
+                    try FileManager.default.trashItem(at: file.url, resultingItemURL: nil)
+                    deletedSize += file.size
+                    successCount += 1
+                } catch {
+                    print("Failed to delete \(file.path): \(error)")
+                    failCount += 1
+                    lastError = error
+                }
+            }
+            
+            // 更新 UI
             DispatchQueue.main.async {
-                guard let self = self else { return }
-                
-                if let error = error {
-                    print("Error recycling files: \(error.localizedDescription)")
-                    self.deleteErrorMessage = "Could not move files to Trash. Please check Permissions.\nError: \(error.localizedDescription)"
+                if failCount > 0 {
+                    // 部分或全部失败
+                    let message = "\(successCount) files moved to Trash.\n\(failCount) files failed to delete.\n\nError: \(lastError?.localizedDescription ?? "Unknown error")\n\nPlease check File Access Permissions."
+                    self.deleteErrorMessage = message
                     self.showingDeleteAlert = true
-                } else {
-                    let deletedSize = filesToDelete.reduce(0) { $0 + $1.size }
+                }
+                
+                // 如果至少有一个成功，就进入清理完成界面
+                if successCount > 0 {
                     withAnimation {
                         self.appState.cleanedSize = deletedSize
                         self.appState.scanState = .cleaned

@@ -72,24 +72,39 @@ class AppState: ObservableObject {
         totalSelectedSize = total
     }
     
+    // 逻辑修正：基于修改日期进行自动选择
     func autoSelect(keep: AutoSelectRule) {
         selectedFiles.removeAll()
         
         for group in duplicateGroups {
             guard group.files.count > 1 else { continue }
             
-            // 这里使用路径字符串长度作为简单的排序演示
-            // 实际生产中建议在 FileItem 增加 creationDate/modificationDate 并按日期排序
             let sortedFiles: [FileItem]
+            
             switch keep {
             case .newest:
-                // 模拟保留“最新”（假设较长的路径是较新的，或者按字母倒序）
-                sortedFiles = group.files.sorted { $0.path > $1.path }
+                // 保留最新的：按修改日期降序排列（新的在前），若日期相同或为空，则按路径兜底
+                sortedFiles = group.files.sorted {
+                    let date1 = $0.modificationDate ?? Date.distantPast
+                    let date2 = $1.modificationDate ?? Date.distantPast
+                    if date1 != date2 {
+                        return date1 > date2
+                    }
+                    return $0.path > $1.path
+                }
             case .oldest:
-                sortedFiles = group.files.sorted { $0.path < $1.path }
+                // 保留最旧的：按修改日期升序排列（旧的在前）
+                sortedFiles = group.files.sorted {
+                    let date1 = $0.modificationDate ?? Date.distantFuture
+                    let date2 = $1.modificationDate ?? Date.distantFuture
+                    if date1 != date2 {
+                        return date1 < date2
+                    }
+                    return $0.path < $1.path
+                }
             }
             
-            // 保留第一个（即排在最前的），选中其余所有的进行删除
+            // 保留第一个（即符合规则的“正本”），选中其余所有的进行删除
             for i in 1..<sortedFiles.count {
                 selectedFiles.insert(sortedFiles[i].id)
             }

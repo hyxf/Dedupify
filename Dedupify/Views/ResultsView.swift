@@ -4,6 +4,7 @@
 //
 
 import SwiftUI
+import QuickLookThumbnailing
 
 struct ResultsView: View {
     @EnvironmentObject var appState: AppState
@@ -86,9 +87,7 @@ struct ResultsView: View {
             VStack(spacing: 0) {
                 // MARK: Toolbar
                 HStack {
-                    // 左侧：自动选择菜单
                     Menu {
-                        // FIXED: 调用 ViewModel 方法，而非直接操作 AppState
                         Button("Select Newest") { viewModel.autoSelect(keep: .oldest) }
                         Button("Select Oldest") { viewModel.autoSelect(keep: .newest) }
                         Divider()
@@ -107,7 +106,6 @@ struct ResultsView: View {
                     
                     Spacer()
                     
-                    // 右侧：排序菜单
                     Menu {
                         Button("Size") { viewModel.sortBy = .size }
                         Button("Name") { viewModel.sortBy = .name }
@@ -157,7 +155,6 @@ struct ResultsView: View {
                 }
                 .background(Color.white.opacity(0.02))
                 
-                // Bottom Status Bar for List
                 HStack {
                     Text(viewModel.viewMode == .selected ? "\(appState.selectedFiles.count) files selected" : "\(appState.duplicateGroups.count) groups found")
                     Spacer()
@@ -231,8 +228,7 @@ struct ResultsView: View {
         .onChange(of: viewModel.viewMode) { _ in
             viewModel.onViewModeChanged()
         }
-        // 错误提示弹窗
-        .alert("Deletion Failed", isPresented: $viewModel.showingDeleteAlert) {
+        .alert("Deletion Result", isPresented: $viewModel.showingDeleteAlert) {
             Button("OK", role: .cancel) { }
         } message: {
             Text(viewModel.deleteErrorMessage)
@@ -240,8 +236,118 @@ struct ResultsView: View {
     }
 }
 
-// MARK: - Component Views
-// 组件视图保持不变
+// MARK: - Components
+
+// 新增：文件预览视图
+struct FileThumbnailView: View {
+    let url: URL
+    @State private var thumbnail: NSImage?
+    
+    var body: some View {
+        Group {
+            if let image = thumbnail {
+                Image(nsImage: image)
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+            } else {
+                Image(systemName: "doc.fill")
+                    .font(.system(size: 80))
+                    .foregroundColor(.blue.opacity(0.5))
+            }
+        }
+        .frame(height: 180)
+        .onAppear {
+            generateThumbnail()
+        }
+        .onChange(of: url) { _ in
+            thumbnail = nil
+            generateThumbnail()
+        }
+    }
+    
+    private func generateThumbnail() {
+        let size = CGSize(width: 300, height: 300)
+        let request = QLThumbnailGenerator.Request(fileAt: url, size: size, scale: 2.0, representationTypes: .thumbnail)
+        
+        QLThumbnailGenerator.shared.generateBestRepresentation(for: request) { (thumbnail, error) in
+            if let thumbnail = thumbnail {
+                DispatchQueue.main.async {
+                    self.thumbnail = thumbnail.nsImage
+                }
+            }
+        }
+    }
+}
+
+struct FileDetailPane: View {
+    let file: FileItem
+    
+    var body: some View {
+        VStack(spacing: 20) {
+            ScrollView {
+                VStack(spacing: 24) {
+                    VStack(spacing: 16) {
+                        // 使用增强的缩略图组件
+                        FileThumbnailView(url: file.url)
+                            .shadow(color: .black.opacity(0.5), radius: 10, y: 5)
+                            .padding(.top, 20)
+                        
+                        Text(file.name)
+                            .font(.title2)
+                            .fontWeight(.medium)
+                            .foregroundColor(.white)
+                            .multilineTextAlignment(.center)
+                            .lineLimit(3)
+                            .padding(.horizontal)
+                    }
+                    
+                    Divider().background(Color.white.opacity(0.1))
+                    
+                    VStack(alignment: .leading, spacing: 16) {
+                        DetailRow(label: "Size", value: file.sizeFormatted)
+                        DetailRow(label: "Kind", value: file.url.pathExtension.uppercased())
+                        
+                        // 显示完整日期信息
+                        if let modDate = file.modificationDate {
+                            DetailRow(label: "Modified", value: modDate.formatted(date: .abbreviated, time: .shortened))
+                        }
+                        if let createDate = file.creationDate {
+                             DetailRow(label: "Created", value: createDate.formatted(date: .abbreviated, time: .shortened))
+                        }
+                        
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text("Path")
+                                .font(.system(size: 14))
+                                .foregroundColor(.white.opacity(0.5))
+                            Text(file.path)
+                                .font(.system(size: 14))
+                                .foregroundColor(.white.opacity(0.9))
+                                .lineLimit(6)
+                                .textSelection(.enabled)
+                        }
+                        .padding(.top, 4)
+                        
+                        Button(action: {
+                            NSWorkspace.shared.activateFileViewerSelecting([file.url])
+                        }) {
+                            HStack {
+                                Image(systemName: "folder")
+                                Text("Reveal in Finder")
+                            }
+                            .font(.caption)
+                            .foregroundColor(.blue)
+                        }
+                        .buttonStyle(.plain)
+                        .padding(.top, 10)
+                    }
+                    .padding(.horizontal)
+                }
+            }
+        }
+    }
+}
+
+// 其余组件保持不变...
 struct ToolbarButtonLabel: View {
     let title: String
     let icon: String
@@ -445,58 +551,6 @@ struct FileTreeRow: View {
             .buttonStyle(.plain)
         }
         .background(isHighlighted ? Color.blue.opacity(0.6) : Color.clear)
-    }
-}
-
-struct FileDetailPane: View {
-    let file: FileItem
-    
-    var body: some View {
-        VStack(spacing: 20) {
-            ScrollView {
-                VStack(spacing: 24) {
-                    VStack(spacing: 16) {
-                        Image(systemName: "doc.fill")
-                            .font(.system(size: 90))
-                            .foregroundColor(.blue.opacity(0.5))
-                            .padding(.top, 40)
-                            .shadow(color: .black.opacity(0.5), radius: 10, y: 5)
-                        
-                        Text(file.name)
-                            .font(.title2)
-                            .fontWeight(.medium)
-                            .foregroundColor(.white)
-                            .multilineTextAlignment(.center)
-                            .lineLimit(3)
-                            .padding(.horizontal)
-                    }
-                    
-                    Divider().background(Color.white.opacity(0.1))
-                    
-                    VStack(alignment: .leading, spacing: 16) {
-                        DetailRow(label: "Size", value: file.sizeFormatted)
-                        DetailRow(label: "Kind", value: file.url.pathExtension.uppercased())
-                        
-                        if let date = try? file.url.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate {
-                            DetailRow(label: "Modified", value: date.formatted(date: .abbreviated, time: .shortened))
-                        }
-                        
-                        VStack(alignment: .leading, spacing: 6) {
-                            Text("Path")
-                                .font(.system(size: 14))
-                                .foregroundColor(.white.opacity(0.5))
-                            Text(file.path)
-                                .font(.system(size: 14))
-                                .foregroundColor(.white.opacity(0.9))
-                                .lineLimit(6)
-                                .textSelection(.enabled)
-                        }
-                        .padding(.top, 4)
-                    }
-                    .padding(.horizontal)
-                }
-            }
-        }
     }
 }
 

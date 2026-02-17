@@ -10,7 +10,23 @@ struct FileItem: Identifiable, Hashable {
     let url: URL
     let size: Int64
     let hash: String
+    
+    // 新增：日期属性，用于自动选择逻辑
+    let modificationDate: Date?
+    let creationDate: Date?
+    
     var isSelected: Bool = false
+    
+    // 初始化时读取日期信息
+    init(url: URL, size: Int64, hash: String) {
+        self.url = url
+        self.size = size
+        self.hash = hash
+        
+        let values = try? url.resourceValues(forKeys: [.contentModificationDateKey, .creationDateKey])
+        self.modificationDate = values?.contentModificationDate
+        self.creationDate = values?.creationDate
+    }
     
     var name: String {
         url.lastPathComponent
