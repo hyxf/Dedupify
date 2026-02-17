@@ -50,7 +50,7 @@ class DuplicateScanner {
         // --- 第二步：局部哈希预筛选 (Partial Hash) ---
         // 对大小相同的文件，先读取部分字节进行比对，避免大文件直接全量读取
         var potentialDuplicates: [[URL]] = []
-        var totalFilesToPartialHash = sizeGroups.values.reduce(0) { $0 + $1.count }
+        let totalFilesToPartialHash = sizeGroups.values.reduce(0) { $0 + $1.count }
         var processedPartialCount = 0
         
         for (_, urls) in sizeGroups {
