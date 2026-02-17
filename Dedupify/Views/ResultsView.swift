@@ -158,15 +158,12 @@ struct ResultsView: View {
                     }
                 }
                 .background(Color.white.opacity(0.02))
-                // 上架级优化：键盘空格键预览支持
-                // 注意：.onKeyPress 需要 macOS 14.0+，如果兼容旧版本需用其他方式，这里假设新系统
-                .focusable() 
-                .onKeyPress(.space) {
+                // macOS 13 兼容性修改：
+                // 如果是 macOS 14+ 使用 .onKeyPress，否则使用 hidden button shortcut
+                .compatibleSpacePreview {
                     if let file = viewModel.highlightedFile {
                         previewURL = file.url
-                        return .handled
                     }
-                    return .ignored
                 }
                 
                 HStack {
@@ -672,5 +669,29 @@ struct EdgeBorder: Shape {
             path.addRect(CGRect(x: x, y: y, width: w, height: h))
         }
         return path
+    }
+}
+
+// 兼容性扩展：在 macOS 14 上使用 onKeyPress，在旧版本使用 keyboardShortcut
+extension View {
+    @ViewBuilder
+    func compatibleSpacePreview(action: @escaping () -> Void) -> some View {
+        if #available(macOS 14.0, *) {
+            self.focusable()
+                .onKeyPress(.space) {
+                    action()
+                    return .handled
+                }
+        } else {
+            // macOS 13 兼容方案：使用隐藏的按钮监听空格键
+            self.background(
+                Button(action: action) {
+                    EmptyView()
+                }
+                .keyboardShortcut(.space, modifiers: [])
+                .opacity(0)
+                .frame(width: 0, height: 0)
+            )
+        }
     }
 }
