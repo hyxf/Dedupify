@@ -15,14 +15,15 @@ struct ResultsFoundView: View {
             
             ZStack {
                 Circle()
-                    .stroke(Color.orange.opacity(0.8), lineWidth: 4)
+                    .stroke(Color.orange.opacity(0.5), lineWidth: 4)
                     .frame(width: 280, height: 280)
+                    .background(Circle().fill(Color.orange.opacity(0.05)))
                     .matchedGeometryEffect(id: "CenterOrb", in: namespace)
                 
                 VStack(spacing: 8) {
                     Text("\(ByteCountFormatter.string(fromByteCount: appState.totalDuplicateSize, countStyle: .file))")
                         .font(.system(size: 42, weight: .medium))
-                        .foregroundColor(.white)
+                        .foregroundColor(.primary)
                     
                     Text("Potential Waste")
                         .font(.subheadline)
@@ -36,15 +37,15 @@ struct ResultsFoundView: View {
                 Text("Scan Completed")
                     .font(.largeTitle)
                     .fontWeight(.light)
-                    .foregroundColor(.white)
+                    .foregroundColor(.primary)
                 
                 Text("We found duplicates in \(appState.scannedFolderCount) folders.")
-                    .foregroundColor(.white.opacity(0.7))
+                    .foregroundColor(.secondary)
                 
                 HStack(spacing: 20) {
                     Button(action: { appState.reset() }) {
                         Text("Cancel")
-                            .foregroundColor(.white.opacity(0.6))
+                            .foregroundColor(.secondary)
                             .padding(.horizontal, 20)
                             .padding(.vertical, 10)
                     }
@@ -62,7 +63,7 @@ struct ResultsFoundView: View {
                             .padding(.vertical, 12)
                             .background(Color.blue)
                             .cornerRadius(8)
-                            .shadow(color: .blue.opacity(0.4), radius: 8, y: 4)
+                            .shadow(color: .blue.opacity(0.3), radius: 5, y: 3)
                     }
                     .buttonStyle(.plain)
                 }

@@ -15,13 +15,13 @@ struct CleanedView: View {
             
             ZStack {
                 Circle()
-                    .fill(Color.blue.opacity(0.1))
+                    .fill(Color.green.opacity(0.1))
                     .frame(width: 280, height: 280)
                     .matchedGeometryEffect(id: "CenterOrb", in: namespace)
                 
                 Image(systemName: "sparkles")
                     .font(.system(size: 80))
-                    .foregroundColor(.yellow.opacity(0.8))
+                    .foregroundColor(.green.opacity(0.8))
             }
             
             Spacer()
@@ -29,11 +29,11 @@ struct CleanedView: View {
             VStack(spacing: 16) {
                 Text("Cleanup Complete")
                     .font(.system(size: 36, weight: .light))
-                    .foregroundColor(.white)
+                    .foregroundColor(.primary)
                 
                 Text("You just recovered \(ByteCountFormatter.string(fromByteCount: appState.cleanedSize, countStyle: .file)) of space.")
                     .font(.title3)
-                    .foregroundColor(.white.opacity(0.8))
+                    .foregroundColor(.secondary)
                 
                 Text("Items have been moved to the Trash.")
                     .font(.caption)
@@ -43,10 +43,10 @@ struct CleanedView: View {
                 Button(action: { appState.reset() }) {
                     Text("Done")
                         .font(.headline)
-                        .foregroundColor(.black)
+                        .foregroundColor(.white)
                         .padding(.horizontal, 40)
                         .padding(.vertical, 12)
-                        .background(Color.white)
+                        .background(Color.blue)
                         .cornerRadius(8)
                 }
                 .buttonStyle(.plain)

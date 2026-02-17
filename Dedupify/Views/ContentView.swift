@@ -7,15 +7,15 @@ import SwiftUI
 
 struct ContentView: View {
     @EnvironmentObject var appState: AppState
-    @Namespace private var animationNamespace // 关键：共享动画命名空间
+    @Namespace private var animationNamespace
     
     var body: some View {
         ZStack {
-            // 全局背景
+            // 全局背景：亮色风格
             AppBackground()
             
             VStack(spacing: 0) {
-                // 顶部拖拽区域（避开红绿灯）
+                // 顶部拖拽区域
                 Color.clear.frame(height: 38)
                     .contentShape(Rectangle())
                     .gesture(WindowDragGesture())
@@ -43,6 +43,8 @@ struct ContentView: View {
             }
         }
         .ignoresSafeArea()
+        // 强制浅色模式 (如果系统是深色，App 依然保持亮色，或者删掉这行让其跟随系统)
+        .preferredColorScheme(.light)
     }
 }
 
@@ -51,17 +53,15 @@ struct ContentView: View {
 struct AppBackground: View {
     var body: some View {
         ZStack {
+            // 极简浅灰/白色渐变
             LinearGradient(
                 colors: [
-                    Color(red: 0.15, green: 0.15, blue: 0.2),
-                    Color(red: 0.1, green: 0.1, blue: 0.15)
+                    Color(nsColor: .windowBackgroundColor),
+                    Color(red: 0.96, green: 0.97, blue: 0.99)
                 ],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
+                startPoint: .top,
+                endPoint: .bottom
             )
-            // 纹理
-            Rectangle()
-                .fill(.white.opacity(0.02))
         }
         .ignoresSafeArea()
     }

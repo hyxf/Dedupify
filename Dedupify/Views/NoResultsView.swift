@@ -15,7 +15,8 @@ struct NoResultsView: View {
             
             ZStack {
                 Circle()
-                    .stroke(Color.green.opacity(0.6), lineWidth: 4)
+                    .stroke(Color.green.opacity(0.5), lineWidth: 4)
+                    .background(Circle().fill(Color.green.opacity(0.05)))
                     .frame(width: 280, height: 280)
                     .matchedGeometryEffect(id: "CenterOrb", in: namespace)
                 
@@ -26,7 +27,7 @@ struct NoResultsView: View {
                     
                     Text("All Clean")
                         .font(.title2)
-                        .foregroundColor(.green.opacity(0.8))
+                        .foregroundColor(.green)
                 }
             }
             
@@ -35,24 +36,24 @@ struct NoResultsView: View {
             VStack(spacing: 16) {
                 Text("No Duplicates Found")
                     .font(.system(size: 32, weight: .light))
-                    .foregroundColor(.white)
+                    .foregroundColor(.primary)
                 
                 Text("Your folders are organized and clutter-free.")
                     .font(.body)
-                    .foregroundColor(.white.opacity(0.6))
+                    .foregroundColor(.secondary)
                     .padding(.bottom, 20)
                 
                 Button(action: { appState.reset() }) {
                     Text("Start Over")
                         .font(.headline)
-                        .foregroundColor(.white)
+                        .foregroundColor(.blue)
                         .padding(.horizontal, 30)
                         .padding(.vertical, 12)
-                        .background(Color.white.opacity(0.1))
+                        .background(Color.blue.opacity(0.1))
                         .cornerRadius(8)
                         .overlay(
                             RoundedRectangle(cornerRadius: 8)
-                                .stroke(Color.white.opacity(0.2), lineWidth: 1)
+                                .stroke(Color.blue.opacity(0.3), lineWidth: 1)
                         )
                 }
                 .buttonStyle(.plain)
