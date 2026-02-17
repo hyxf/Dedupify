@@ -33,9 +33,12 @@ struct FileDuplicateFinderApp: App {
                 .environmentObject(initialVM)
                 .environmentObject(selectFoldersVM)
                 .environmentObject(resultsVM)
-                .frame(minWidth: 900, maxWidth: .infinity, minHeight: 600, maxHeight: .infinity)
+                // 限制最小尺寸，但允许用户拉大，去掉 maxWidth: .infinity 防止启动时自动撑满
+                .frame(minWidth: 900, minHeight: 600)
         }
         .windowStyle(.hiddenTitleBar)
-        .windowResizability(.contentSize)
+        // 关键修改：设置一个合理的默认启动尺寸 (宽 1000, 高 720)
+        .defaultSize(width: 1000, height: 720)
+        // 移除 .windowResizability(.contentSize)，避免它强制去匹配 infinity
     }
 }
