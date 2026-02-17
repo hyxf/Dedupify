@@ -5,10 +5,14 @@
 
 import SwiftUI
 import QuickLookThumbnailing
+import QuickLook // 用于全屏预览
 
 struct ResultsView: View {
     @EnvironmentObject var appState: AppState
     @EnvironmentObject var viewModel: ResultsViewModel
+    
+    // QuickLook 状态
+    @State private var previewURL: URL?
     
     var body: some View {
         HStack(spacing: 0) {
@@ -154,6 +158,16 @@ struct ResultsView: View {
                     }
                 }
                 .background(Color.white.opacity(0.02))
+                // 上架级优化：键盘空格键预览支持
+                // 注意：.onKeyPress 需要 macOS 14.0+，如果兼容旧版本需用其他方式，这里假设新系统
+                .focusable() 
+                .onKeyPress(.space) {
+                    if let file = viewModel.highlightedFile {
+                        previewURL = file.url
+                        return .handled
+                    }
+                    return .ignored
+                }
                 
                 HStack {
                     Text(viewModel.viewMode == .selected ? "\(appState.selectedFiles.count) files selected" : "\(appState.duplicateGroups.count) groups found")
@@ -233,12 +247,13 @@ struct ResultsView: View {
         } message: {
             Text(viewModel.deleteErrorMessage)
         }
+        // QuickLook 预览窗口
+        .quickLookPreview($previewURL)
     }
 }
 
 // MARK: - Components
 
-// 新增：文件预览视图
 struct FileThumbnailView: View {
     let url: URL
     @State private var thumbnail: NSImage?
@@ -287,10 +302,13 @@ struct FileDetailPane: View {
             ScrollView {
                 VStack(spacing: 24) {
                     VStack(spacing: 16) {
-                        // 使用增强的缩略图组件
                         FileThumbnailView(url: file.url)
                             .shadow(color: .black.opacity(0.5), radius: 10, y: 5)
                             .padding(.top, 20)
+                            // 允许点击缩略图直接打开预览
+                            .onTapGesture {
+                                NSWorkspace.shared.open(file.url)
+                            }
                         
                         Text(file.name)
                             .font(.title2)
@@ -307,7 +325,6 @@ struct FileDetailPane: View {
                         DetailRow(label: "Size", value: file.sizeFormatted)
                         DetailRow(label: "Kind", value: file.url.pathExtension.uppercased())
                         
-                        // 显示完整日期信息
                         if let modDate = file.modificationDate {
                             DetailRow(label: "Modified", value: modDate.formatted(date: .abbreviated, time: .shortened))
                         }
@@ -347,7 +364,7 @@ struct FileDetailPane: View {
     }
 }
 
-// 其余组件保持不变...
+// 辅助组件 (保持不变)
 struct ToolbarButtonLabel: View {
     let title: String
     let icon: String

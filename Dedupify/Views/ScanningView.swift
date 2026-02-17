@@ -10,6 +10,21 @@ struct ScanningView: View {
     var namespace: Namespace.ID
     @State private var rotation: Double = 0
     
+    // 解析进度百分比，用于进度条
+    var progressValue: Double {
+        // 尝试从字符串 "Scanning 45%..." 中提取数字
+        if let range = appState.scanProgress.range(of: "\\d+%", options: .regularExpression),
+           let number = Double(appState.scanProgress[range].dropLast()) {
+            return number / 100.0
+        }
+        // 如果是 "Enumerating..." 或 "Finalizing..." 这种无法量化的状态
+        return 0.0 //Indeterminate
+    }
+    
+    var isIndeterminate: Bool {
+        return !appState.scanProgress.contains("%")
+    }
+    
     var body: some View {
         VStack {
             Spacer()
@@ -48,12 +63,27 @@ struct ScanningView: View {
             
             Spacer()
             
-            VStack(spacing: 16) {
-                Text(appState.scanProgress)
-                    .font(.headline)
-                    .foregroundColor(.white.opacity(0.9))
-                    .frame(width: 400)
-                    .lineLimit(1)
+            VStack(spacing: 20) {
+                // 上架级优化：图形化进度条
+                VStack(spacing: 8) {
+                    if isIndeterminate {
+                        ProgressView()
+                            .progressViewStyle(.linear)
+                            .tint(.blue)
+                            .frame(width: 300)
+                    } else {
+                        ProgressView(value: progressValue)
+                            .progressViewStyle(.linear)
+                            .tint(.blue)
+                            .frame(width: 300)
+                    }
+                    
+                    Text(appState.scanProgress)
+                        .font(.headline)
+                        .foregroundColor(.white.opacity(0.9))
+                        .frame(width: 400)
+                        .lineLimit(1)
+                }
                 
                 Button(action: { appState.stopScan() }) {
                     Text("Stop Scanning")

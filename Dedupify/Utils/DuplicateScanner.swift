@@ -8,11 +8,23 @@ import CryptoKit
 
 class DuplicateScanner {
     
+    // 上架级优化：内置常见垃圾目录黑名单
+    private static let ignoredDirectories: Set<String> = [
+        "node_modules",
+        ".git",
+        ".svn",
+        ".hg",
+        "DerivedData",
+        "build",
+        "dist",
+        "__pycache__",
+        ".idea",
+        ".vscode",
+        "Pods",
+        "Carthage"
+    ]
+    
     /// 扫描文件夹寻找重复文件
-    /// 优化策略：
-    /// 1. 遍历所有文件 -> 按大小分组
-    /// 2. 大小相同 -> 计算局部哈希（快速筛选大文件）
-    /// 3. 局部哈希相同 -> 计算全量哈希（确保准确性）
     static func scanFolders(_ folders: [URL], progressCallback: @escaping (String) -> Void) async -> [DuplicateGroup] {
         var lastUpdateTime = Date()
         
@@ -34,6 +46,7 @@ class DuplicateScanner {
         for folder in folders {
             if Task.isCancelled { return [] }
             
+            // 使用支持黑名单的收集函数
             let files = collectFiles(from: folder)
             for url in files {
                 // 忽略 0 字节文件
@@ -48,9 +61,8 @@ class DuplicateScanner {
         let sizeGroups = filesBySize.filter { $0.value.count > 1 }
         
         // --- 第二步：局部哈希预筛选 (Partial Hash) ---
-        // 对大小相同的文件，先读取部分字节进行比对，避免大文件直接全量读取
         var potentialDuplicates: [[URL]] = []
-        let totalFilesToPartialHash = sizeGroups.values.reduce(0) { $0 + $1.count }
+        var totalFilesToPartialHash = sizeGroups.values.reduce(0) { $0 + $1.count }
         var processedPartialCount = 0
         
         for (_, urls) in sizeGroups {
@@ -63,13 +75,11 @@ class DuplicateScanner {
                 let percent = Int((Double(processedPartialCount) / Double(totalFilesToPartialHash)) * 100)
                 await reportProgress("Pre-scanning \(percent)%...")
                 
-                // 计算局部哈希 (前 4KB + 中 4KB + 后 4KB)
                 if let partialHash = try? calculatePartialHash(for: url) {
                     filesByPartialHash[partialHash, default: []].append(url)
                 }
             }
             
-            // 只有局部哈希也相同的，才进入下一轮全量哈希
             for group in filesByPartialHash.values where group.count > 1 {
                 potentialDuplicates.append(group)
             }
@@ -83,8 +93,6 @@ class DuplicateScanner {
         for group in potentialDuplicates {
             if Task.isCancelled { return [] }
             
-            // 这一组文件大小相同、局部内容相同，必须全量哈希确保 100% 准确
-            // 获取该组文件的大小（取第一个即可）
             let fileSize = (try? group.first?.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0
             
             for url in group {
@@ -115,15 +123,38 @@ class DuplicateScanner {
     
     private static func collectFiles(from folder: URL) -> [URL] {
         var files: [URL] = []
+        
+        // 定义需要的键 (Array)
+        let keys: [URLResourceKey] = [.isRegularFileKey, .isDirectoryKey]
+        // 修复：显式转换为 Set，供 resourceValues 使用
+        let keysSet = Set(keys)
+        
+        let options: FileManager.DirectoryEnumerationOptions = [.skipsHiddenFiles, .skipsPackageDescendants]
+        
         guard let enumerator = FileManager.default.enumerator(
             at: folder,
-            includingPropertiesForKeys: [.isRegularFileKey, .fileSizeKey],
-            options: [.skipsHiddenFiles, .skipsPackageDescendants]
+            includingPropertiesForKeys: keys, // 这里传 Array
+            options: options,
+            errorHandler: { url, error in
+                print("Directory enumerator error at \(url): \(error)")
+                return true 
+            }
         ) else { return [] }
         
         for case let fileURL as URL in enumerator {
             do {
-                let resourceValues = try fileURL.resourceValues(forKeys: [.isRegularFileKey])
+                // 修复：这里传 Set
+                let resourceValues = try fileURL.resourceValues(forKeys: keysSet)
+                
+                // 1. 检查是否为目录，如果是黑名单目录，跳过其所有子内容
+                if resourceValues.isDirectory == true {
+                    if ignoredDirectories.contains(fileURL.lastPathComponent) {
+                        enumerator.skipDescendants()
+                    }
+                    continue
+                }
+                
+                // 2. 收集普通文件
                 if resourceValues.isRegularFile == true {
                     files.append(fileURL)
                 }
@@ -134,7 +165,7 @@ class DuplicateScanner {
     
     /// 计算全量 SHA256
     private static func calculateHash(for url: URL) throws -> String {
-        let bufferSize = 65536 // 64KB Buffer
+        let bufferSize = 65536
         let file = try FileHandle(forReadingFrom: url)
         defer { try? file.close() }
         
@@ -148,23 +179,20 @@ class DuplicateScanner {
         return hasher.finalize().map { String(format: "%02x", $0) }.joined()
     }
     
-    /// 计算局部哈希（快速指纹）
-    /// 读取文件头、中、尾各 4KB 数据组合计算哈希，大幅减少 IO
+    /// 计算局部哈希
     private static func calculatePartialHash(for url: URL) throws -> String {
         let file = try FileHandle(forReadingFrom: url)
         defer { try? file.close() }
         
         let fileSize = try FileManager.default.attributesOfItem(atPath: url.path)[.size] as? UInt64 ?? 0
-        let chunkSize: UInt64 = 4096 // 4KB
+        let chunkSize: UInt64 = 4096
         
-        var hasher = Insecure.MD5() // 局部哈希用 MD5 足够且更快，仅用于预筛选
+        var hasher = Insecure.MD5()
         
-        // 1. 读取头部
         if let data = try? file.read(upToCount: Int(chunkSize)) {
             hasher.update(data: data)
         }
         
-        // 2. 读取中部（如果文件足够大）
         if fileSize > chunkSize * 2 {
             try? file.seek(toOffset: fileSize / 2)
             if let data = try? file.read(upToCount: Int(chunkSize)) {
@@ -172,7 +200,6 @@ class DuplicateScanner {
             }
         }
         
-        // 3. 读取尾部（如果文件足够大）
         if fileSize > chunkSize * 3 {
             try? file.seek(toOffset: max(0, fileSize - chunkSize))
             if let data = try? file.read(upToCount: Int(chunkSize)) {
@@ -185,13 +212,10 @@ class DuplicateScanner {
     
     static func deleteFiles(_ files: [FileItem]) async throws -> Int64 {
         var totalSize: Int64 = 0
-        
         for file in files {
-            // 使用 trashItem 相比 removeItem 更安全
             try FileManager.default.trashItem(at: file.url, resultingItemURL: nil)
             totalSize += file.size
         }
-        
         return totalSize
     }
 }
