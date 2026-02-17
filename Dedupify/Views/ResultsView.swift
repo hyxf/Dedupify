@@ -36,10 +36,10 @@ struct ResultsView: View {
                             Spacer()
                             Text(ByteCountFormatter.string(fromByteCount: appState.totalSelectedSize, countStyle: .file))
                                 .font(.caption)
-                                .foregroundColor(appState.totalSelectedSize > 0 ? .blue : .secondary)
+                                .foregroundColor(appState.totalSelectedSize > 0 ? .white : .secondary)
                         } icon: {
                             Image(systemName: "checkmark.circle")
-                                .foregroundColor(viewModel.viewMode == .selected ? .blue : .green)
+                                .foregroundColor(viewModel.viewMode == .selected ? .white : .green)
                         }
                     }
                 }
