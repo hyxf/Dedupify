@@ -7,60 +7,13 @@ import SwiftUI
 
 struct ResultsView: View {
     @EnvironmentObject var appState: AppState
-    
-    // 视图状态
-    @State private var viewMode: ViewMode = .allDuplicates
-    @State private var expandedGroups: Set<UUID> = []
-    @State private var highlightedFile: FileItem?
-    @State private var highlightedGroup: DuplicateGroup?
-    @State private var sortBy: SortOption = .size
-    
-    // 错误处理状态
-    @State private var showingDeleteAlert = false
-    @State private var deleteErrorMessage = ""
-    
-    enum ViewMode {
-        case allDuplicates
-        case selected
-    }
-    
-    enum SortOption {
-        case size, name, count
-        
-        var title: String {
-            switch self {
-            case .size: return "Size"
-            case .name: return "Name"
-            case .count: return "Count"
-            }
-        }
-    }
-    
-    // 排序逻辑
-    var sortedGroups: [DuplicateGroup] {
-        let filteredGroups: [DuplicateGroup]
-        
-        switch viewMode {
-        case .allDuplicates:
-            filteredGroups = appState.duplicateGroups
-        case .selected:
-            filteredGroups = appState.duplicateGroups.filter { group in
-                group.files.contains { appState.selectedFiles.contains($0.id) }
-            }
-        }
-        
-        switch sortBy {
-        case .size: return filteredGroups.sorted { $0.duplicateSize > $1.duplicateSize }
-        case .name: return filteredGroups.sorted { ($0.files.first?.name ?? "") < ($1.files.first?.name ?? "") }
-        case .count: return filteredGroups.sorted { $0.files.count > $1.files.count }
-        }
-    }
+    @EnvironmentObject var viewModel: ResultsViewModel
     
     var body: some View {
         HStack(spacing: 0) {
             // MARK: - 1. Left Sidebar
             VStack(spacing: 0) {
-                // Header (新增：返回按钮)
+                // Header
                 HStack(spacing: 12) {
                     Button(action: { appState.reset() }) {
                         Image(systemName: "chevron.left")
@@ -93,19 +46,19 @@ struct ResultsView: View {
                             title: "All Duplicates",
                             icon: "doc.on.doc",
                             size: appState.totalDuplicateSize,
-                            isSelected: viewMode == .allDuplicates
+                            isSelected: viewModel.viewMode == .allDuplicates
                         ) {
-                            viewMode = .allDuplicates
+                            viewModel.viewMode = .allDuplicates
                         }
                         
                         SidebarButton(
                             title: "Selected",
                             icon: "checkmark.circle",
                             size: appState.totalSelectedSize,
-                            isSelected: viewMode == .selected,
+                            isSelected: viewModel.viewMode == .selected,
                             accentColor: .green
                         ) {
-                            viewMode = .selected
+                            viewModel.viewMode = .selected
                         }
                     }
                     .padding(.vertical, 10)
@@ -135,12 +88,12 @@ struct ResultsView: View {
                 HStack {
                     // 左侧：自动选择菜单
                     Menu {
-                        Button("Select Newest") { appState.autoSelect(keep: .oldest) }
-                        Button("Select Oldest") { appState.autoSelect(keep: .newest) }
+                        // FIXED: 调用 ViewModel 方法，而非直接操作 AppState
+                        Button("Select Newest") { viewModel.autoSelect(keep: .oldest) }
+                        Button("Select Oldest") { viewModel.autoSelect(keep: .newest) }
                         Divider()
                         Button("Deselect All") {
-                            appState.selectedFiles.removeAll()
-                            appState.calculateTotalSelectedSize()
+                            viewModel.deselectAll()
                         }
                     } label: {
                         ToolbarButtonLabel(
@@ -156,12 +109,12 @@ struct ResultsView: View {
                     
                     // 右侧：排序菜单
                     Menu {
-                        Button("Size") { sortBy = .size }
-                        Button("Name") { sortBy = .name }
-                        Button("Count") { sortBy = .count }
+                        Button("Size") { viewModel.sortBy = .size }
+                        Button("Name") { viewModel.sortBy = .name }
+                        Button("Count") { viewModel.sortBy = .count }
                     } label: {
                         ToolbarButtonLabel(
-                            title: "Sort: \(sortBy.title)",
+                            title: "Sort: \(viewModel.sortBy.title)",
                             icon: "arrow.up.arrow.down"
                         )
                     }
@@ -177,32 +130,25 @@ struct ResultsView: View {
                 // List Content
                 ScrollView {
                     LazyVStack(spacing: 0) {
-                        if sortedGroups.isEmpty {
-                            EmptyStateView(mode: viewMode)
+                        if viewModel.sortedGroups.isEmpty {
+                            EmptyStateView(mode: viewModel.viewMode)
                         } else {
-                            ForEach(sortedGroups) { group in
+                            ForEach(viewModel.sortedGroups) { group in
                                 GroupItemView(
                                     group: group,
-                                    viewMode: viewMode,
-                                    isExpanded: expandedGroups.contains(group.id),
-                                    highlightedGroup: highlightedGroup,
-                                    highlightedFile: highlightedFile,
+                                    viewMode: viewModel.viewMode,
+                                    isExpanded: viewModel.expandedGroups.contains(group.id),
+                                    highlightedGroup: viewModel.highlightedGroup,
+                                    highlightedFile: viewModel.highlightedFile,
                                     selectedFiles: appState.selectedFiles,
                                     onToggleExpand: {
-                                        if expandedGroups.contains(group.id) {
-                                            expandedGroups.remove(group.id)
-                                        } else {
-                                            expandedGroups.insert(group.id)
-                                        }
-                                        highlightedGroup = group
-                                        highlightedFile = nil
+                                        viewModel.toggleExpand(group: group)
                                     },
                                     onSelectFile: { file in
-                                        highlightedFile = file
-                                        highlightedGroup = nil
+                                        viewModel.selectFile(file)
                                     },
                                     onToggleCheck: { file in
-                                        toggleFileSelection(file, in: group)
+                                        viewModel.toggleFileSelection(file, in: group)
                                     }
                                 )
                             }
@@ -213,7 +159,7 @@ struct ResultsView: View {
                 
                 // Bottom Status Bar for List
                 HStack {
-                    Text(viewMode == .selected ? "\(appState.selectedFiles.count) files selected" : "\(appState.duplicateGroups.count) groups found")
+                    Text(viewModel.viewMode == .selected ? "\(appState.selectedFiles.count) files selected" : "\(appState.duplicateGroups.count) groups found")
                     Spacer()
                 }
                 .padding(8)
@@ -228,9 +174,9 @@ struct ResultsView: View {
             
             // MARK: - 3. Right Details Panel
             VStack(spacing: 0) {
-                if let file = highlightedFile {
+                if let file = viewModel.highlightedFile {
                     FileDetailPane(file: file)
-                } else if let group = highlightedGroup {
+                } else if let group = viewModel.highlightedGroup {
                     GroupDetailSummary(group: group)
                 } else {
                     VStack {
@@ -261,7 +207,7 @@ struct ResultsView: View {
                     
                     Spacer()
                     
-                    Button(action: removeSelected) {
+                    Button(action: { viewModel.removeSelected() }) {
                         Text("Remove")
                             .fontWeight(.medium)
                             .foregroundColor(.white)
@@ -280,70 +226,22 @@ struct ResultsView: View {
             .background(Color.black.opacity(0.1))
         }
         .onAppear {
-            expandedGroups = Set(appState.duplicateGroups.map { $0.id })
-            
-            if highlightedGroup == nil && highlightedFile == nil {
-                highlightedGroup = sortedGroups.first
-            }
+            viewModel.onAppear()
         }
-        .onChange(of: viewMode) { newMode in
-            expandedGroups = Set(sortedGroups.map { $0.id })
+        .onChange(of: viewModel.viewMode) { _ in
+            viewModel.onViewModeChanged()
         }
         // 错误提示弹窗
-        .alert("Deletion Failed", isPresented: $showingDeleteAlert) {
+        .alert("Deletion Failed", isPresented: $viewModel.showingDeleteAlert) {
             Button("OK", role: .cancel) { }
         } message: {
-            Text(deleteErrorMessage)
-        }
-    }
-    
-    // MARK: - Logic Helpers
-    
-    func toggleFileSelection(_ file: FileItem, in group: DuplicateGroup) {
-        if appState.selectedFiles.contains(file.id) {
-            appState.selectedFiles.remove(file.id)
-        } else {
-            let currentSelectedCount = group.files.filter { appState.selectedFiles.contains($0.id) }.count
-            if currentSelectedCount < group.files.count - 1 {
-                appState.selectedFiles.insert(file.id)
-            } else {
-                print("Cannot select all files in a group. Must keep one.")
-            }
-        }
-        appState.calculateTotalSelectedSize()
-    }
-    
-    func removeSelected() {
-        print("Remove button clicked. Selected files: \(appState.selectedFiles.count)")
-        
-        let filesToDelete = appState.duplicateGroups
-            .flatMap { $0.files }
-            .filter { appState.selectedFiles.contains($0.id) }
-        
-        guard !filesToDelete.isEmpty else { return }
-        
-        let urlsToDelete = filesToDelete.map { $0.url }
-        
-        NSWorkspace.shared.recycle(urlsToDelete) { newURLs, error in
-            DispatchQueue.main.async {
-                if let error = error {
-                    print("Error recycling files: \(error.localizedDescription)")
-                    self.deleteErrorMessage = "Could not move files to Trash. Please check Permissions in Xcode (App Sandbox > User Selected File > Read/Write).\n\nError: \(error.localizedDescription)"
-                    self.showingDeleteAlert = true
-                } else {
-                    let deletedSize = filesToDelete.reduce(0) { $0 + $1.size }
-                    withAnimation {
-                        appState.cleanedSize = deletedSize
-                        appState.scanState = .cleaned
-                    }
-                }
-            }
+            Text(viewModel.deleteErrorMessage)
         }
     }
 }
 
 // MARK: - Component Views
-
+// 组件视图保持不变
 struct ToolbarButtonLabel: View {
     let title: String
     let icon: String
@@ -418,7 +316,7 @@ struct SidebarButton: View {
 
 struct GroupItemView: View {
     let group: DuplicateGroup
-    let viewMode: ResultsView.ViewMode
+    let viewMode: ResultsViewModel.ViewMode
     let isExpanded: Bool
     let highlightedGroup: DuplicateGroup?
     let highlightedFile: FileItem?
@@ -651,7 +549,7 @@ struct DetailRow: View {
 }
 
 struct EmptyStateView: View {
-    let mode: ResultsView.ViewMode
+    let mode: ResultsViewModel.ViewMode
     
     var body: some View {
         VStack(spacing: 12) {

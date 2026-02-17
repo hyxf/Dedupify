@@ -1,0 +1,18 @@
+[
+  "Dedupify/Assets.xcassets/AccentColor.colorset/Contents.json",
+  "Dedupify/Assets.xcassets/AppIcon.appiconset/Contents.json",
+  "Dedupify/Assets.xcassets/Contents.json",
+  "Dedupify/FileDuplicateFinderApp.swift",
+  "Dedupify/Info.plist",
+  "Dedupify/Models/AppState.swift",
+  "Dedupify/Models/FileItem.swift",
+  "Dedupify/Utils/DuplicateScanner.swift",
+  "Dedupify/Views/CleanedView.swift",
+  "Dedupify/Views/ContentView.swift",
+  "Dedupify/Views/InitialView.swift",
+  "Dedupify/Views/NoResultsView.swift",
+  "Dedupify/Views/ResultsFoundView.swift",
+  "Dedupify/Views/ResultsView.swift",
+  "Dedupify/Views/ScanningView.swift",
+  "Dedupify/Views/SelectFoldersView.swift"
+]

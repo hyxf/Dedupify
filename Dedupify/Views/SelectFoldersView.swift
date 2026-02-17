@@ -7,6 +7,7 @@ import SwiftUI
 
 struct SelectFoldersView: View {
     @EnvironmentObject var appState: AppState
+    @EnvironmentObject var viewModel: SelectFoldersViewModel
     var namespace: Namespace.ID
     
     var body: some View {
@@ -38,18 +39,12 @@ struct SelectFoldersView: View {
                     VStack(spacing: 12) {
                         ForEach(appState.selectedFolders, id: \.self) { folder in
                             FolderRow(folder: folder) {
-                                if let idx = appState.selectedFolders.firstIndex(of: folder) {
-                                    withAnimation {
-                                        appState.selectedFolders.remove(at: idx)
-                                        if appState.selectedFolders.isEmpty {
-                                            appState.scanState = .initial
-                                        }
-                                    }
-                                }
+                                // 逻辑委托给 ViewModel
+                                viewModel.removeFolder(folder)
                             }
                         }
                         
-                        Button(action: addMoreFolders) {
+                        Button(action: { viewModel.addMoreFolders() }) {
                             HStack {
                                 Image(systemName: "plus.circle.fill")
                                 Text("Add More")
@@ -92,7 +87,7 @@ struct SelectFoldersView: View {
                         .foregroundColor(.white.opacity(0.6))
                         .padding(.bottom, 30)
                     
-                    Button(action: startScan) {
+                    Button(action: { viewModel.startScan() }) {
                         Text("Start Scan")
                             .font(.headline)
                             .foregroundColor(.white)
@@ -108,55 +103,9 @@ struct SelectFoldersView: View {
             .frame(maxWidth: .infinity)
         }
     }
-    
-    func addMoreFolders() {
-        let panel = NSOpenPanel()
-        panel.canChooseFiles = false
-        panel.canChooseDirectories = true
-        panel.allowsMultipleSelection = true
-        panel.begin { response in
-            if response == .OK {
-                withAnimation {
-                    appState.selectedFolders.append(contentsOf: panel.urls)
-                }
-            }
-        }
-    }
-    
-    func startScan() {
-        withAnimation {
-            appState.scanState = .scanning
-            appState.isScanning = true
-            // 修复：更新已扫描文件夹计数，防止 ResultsFoundView 显示 "0 folders"
-            appState.scannedFolderCount = appState.selectedFolders.count
-        }
-        
-        appState.scanTask = Task {
-            let results = await DuplicateScanner.scanFolders(appState.selectedFolders) { progress in
-                DispatchQueue.main.async {
-                    appState.scanProgress = progress
-                }
-            }
-            
-            if !Task.isCancelled {
-                DispatchQueue.main.async {
-                    withAnimation {
-                        appState.duplicateGroups = results
-                        appState.totalDuplicateSize = results.reduce(0) { $0 + $1.duplicateSize }
-                        appState.isScanning = false
-                        
-                        if results.isEmpty {
-                            appState.scanState = .noResults
-                        } else {
-                            appState.scanState = .resultsFound
-                        }
-                    }
-                }
-            }
-        }
-    }
 }
 
+// Helper View 保持不变，因为它只是纯 UI 组件
 struct FolderRow: View {
     let folder: URL
     let onDelete: () -> Void
